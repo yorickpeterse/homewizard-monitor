@@ -34,6 +34,6 @@ while true
     set consumed (echo $data | jq '."total_power_import_kwh" * 1000')
     set produced (echo $data | jq '."total_power_export_kwh" * 1000')
 
-    echo "electricity phase1=$phase1,phase2=$phase2,phase3=$phase3,produced=$produced,consumed=$consumed" | nc -u $DB_IP $DB_PORT
+    echo "electricity phase1=$phase1,phase2=$phase2,phase3=$phase3,produced=$produced,consumed=$consumed" | ncat --udp $DB_IP $DB_PORT
     sleep 60
 end
