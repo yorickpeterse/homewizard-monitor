@@ -1,0 +1,26 @@
+---
+variables:
+  GIT_DEPTH: 10
+  FF_USE_FASTZIP: "true"
+  ARTIFACT_COMPRESSION_LEVEL: fastest
+  CACHE_COMPRESSION_LEVEL: fastest
+
+stages:
+  - docker
+
+docker:
+  stage: docker
+  services:
+    - docker:dind
+  image: docker:git
+  script:
+    - sh ./scripts/docker.sh "${CI_REGISTRY_IMAGE}/homewizard-monitor:main"
+  except:
+    - schedules
+  only:
+    refs:
+      - main
+    changes:
+      - Dockerfile
+      - monitor.fish
+      - .gitlab-ci.yml
