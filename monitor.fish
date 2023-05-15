@@ -28,12 +28,15 @@ while true
     set phase1 (echo $data | jq '."active_power_l1_w"')
     set phase2 (echo $data | jq '."active_power_l2_w"')
     set phase3 (echo $data | jq '."active_power_l3_w"')
+    set amp1 (echo $data | jq '."active_current_l1_a"')
+    set amp2 (echo $data | jq '."active_current_l2_a"')
+    set amp3 (echo $data | jq '."active_current_l3_a"')
 
     # The API reports the data in Kilowatt/hour, but we want a base unit so we
     # convert it to watts/hour.
     set consumed (echo $data | jq '."total_power_import_kwh" * 1000')
     set produced (echo $data | jq '."total_power_export_kwh" * 1000')
 
-    echo "electricity phase1=$phase1,phase2=$phase2,phase3=$phase3,produced=$produced,consumed=$consumed" | ncat --udp $DB_IP $DB_PORT
+    echo "electricity phase1=$phase1,phase2=$phase2,phase3=$phase3,produced=$produced,consumed=$consumed,current1=$amp1,current2=$amp2,current3=$amp3" | ncat --udp $DB_IP $DB_PORT
     sleep 60
 end
