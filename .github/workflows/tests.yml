@@ -1,0 +1,30 @@
+---
+name: Run tests
+on:
+  workflow_call:
+
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/inko-lang/inko:main
+    steps:
+      - run: microdnf install --quiet --assumeyes tar git
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+      - run: inko --version
+      - run: inko fmt --check
+
+  test:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/inko-lang/inko:main
+    steps:
+      - run: microdnf install --quiet --assumeyes tar git
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+      - uses: actions/cache@v4
+        id: test
+        with:
+          path: '~/.local/share/inko/packages'
+          key: deps-${{ hashFiles('inko.pkg') }}
+      - run: inko --version
+      - run: test -d test/ && inko test

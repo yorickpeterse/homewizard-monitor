@@ -1,0 +1,92 @@
+import std.env
+import std.int (Format)
+import std.json (Json)
+import std.net.http.client (Client)
+import std.net.ip (IpAddress)
+import std.net.socket (UdpSocket)
+import std.process (sleep)
+import std.stdio (Stderr)
+import std.time (Duration)
+import std.uri (Uri)
+
+let KEYS = [
+  ['phase1', 'active_power_l1_w'],
+  ['phase2', 'active_power_l2_w'],
+  ['phase3', 'active_power_l3_w'],
+  ['current1', 'active_current_l1_a'],
+  ['current2', 'active_current_l2_a'],
+  ['current3', 'active_current_l3_a'],
+]
+
+fn number(
+  document: ref Map[String, Json],
+  key: String,
+) -> Result[Float, String] {
+  match document.get(key) {
+    case Ok(Float(v)) -> Result.Ok(v)
+    case Ok(Int(v)) -> Result.Ok(v.to_float)
+    case _ -> throw 'the key "${key}" must be assigned a float or integer value'
+  }
+}
+
+fn get_data(
+  client: mut Client,
+  p1_ip: String,
+) -> Result[Map[String, Float], String] {
+  let uri = Uri.parse('http://${p1_ip}/api/v1/data').or_panic
+  let Ok(res) = client.get(uri).send else throw 'failed to get the P1 data'
+  let Ok(Object(doc)) = Json.parse(res.body) else throw 'the P1 JSON is invalid'
+  let mut data = Map.new
+
+  for [set, get] in KEYS.iter { data.set(set, try number(doc, get)) }
+
+  # The API reports the data in Kilowatt/hour, but we want a base unit so we
+  # convert it to watts/hour.
+  data.set('produced', (try number(doc, 'total_power_export_kwh')) * 1000.0)
+  data.set('consumed', (try number(doc, 'total_power_import_kwh')) * 1000.0)
+  Result.Ok(data)
+}
+
+fn send_data(
+  socket: mut UdpSocket,
+  ip: IpAddress,
+  port: Int,
+  data: Map[String, Float],
+) -> Result[Nil, String] {
+  let vals = String.join(data.into_iter.map(fn (kv) { '${kv.0}=${kv.1}' }), ',')
+
+  match socket.send_to('electricity ${vals}\n', ip, port) {
+    case Ok(_) -> Result.Ok(nil)
+    case Error(e) -> Result.Error(e.to_string)
+  }
+}
+
+type async Main {
+  fn async main {
+    let p1_ip = env.get('P1_IP').or_panic
+    let db_ip = IpAddress.parse(env.get('DB_IP').or_panic).or_panic_with(
+      'The DB_IP value is invalid',
+    )
+    let db_port = Int
+      .parse(env.get('DB_PORT').or_panic, Format.Decimal)
+      .or_panic_with('The DB_PORT value is invalid')
+    let client = Client.new
+    let stderr = Stderr.new
+    let sender = UdpSocket.new(IpAddress.v4(0, 0, 0, 0), port: 0).or_panic
+    let wait = Duration.from_secs(60)
+
+    loop {
+      match get_data(client, p1_ip) {
+        case Ok(v) -> {
+          match send_data(sender, db_ip, db_port, v) {
+            case Ok(_) -> {}
+            case Error(e) -> stderr.print(e)
+          }
+        }
+        case Error(e) -> stderr.print(e)
+      }
+
+      sleep(wait)
+    }
+  }
+}
