@@ -27,4 +27,4 @@ jobs:
           path: '~/.local/share/inko/packages'
           key: deps-${{ hashFiles('inko.pkg') }}
       - run: inko --version
-      - run: test -d test/ && inko test
+      - run: if [ -d test/ ]; then inko test; fi
